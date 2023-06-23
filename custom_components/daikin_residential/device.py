@@ -72,7 +72,7 @@ class DaikinResidentialDevice:
         by Daikin cloud for subPath datapoints."""
         for key in obj.keys():
             if type(obj[key]) is not dict:
-                data[pathPrefix + "/" + key] = obj[key]
+                data[f"{pathPrefix}/{key}"] = obj[key]
             else:
                 subKeys = obj[key].keys()
                 if (
@@ -83,11 +83,11 @@ class DaikinResidentialDevice:
                 ):
                     # we found end leaf
                     # print('FINAL ' + pathPrefix + '/' + key)
-                    data[pathPrefix + "/" + key] = obj[key]
+                    data[f"{pathPrefix}/{key}"] = obj[key]
                 elif type(obj[key]) == dict:
                     # go one level deeper
                     # print('   found ' + key)
-                    newPath = pathPrefix + "/" + key
+                    newPath = f"{pathPrefix}/{key}"
                     self._traverseDatapointStructure(obj[key], data, newPath)
                 else:
                     _LOGGER.error("SOMETHING IS WRONG WITH KEY %s", key)
@@ -176,66 +176,17 @@ class DaikinResidentialDevice:
     def get_value(self, managementPoint=None, dataPoint=None, dataPointPath=""):
         """Get the current value of a data object."""
         data = self.get_data(managementPoint, dataPoint, dataPointPath)
-        if data is None:
-            return None
-        return data["value"]
+        return None if data is None else data["value"]
 
     def get_valid_values(self, managementPoint=None, dataPoint=None, dataPointPath=""):
         """Get a list of the accepted values of a data object."""
         data = self.get_data(managementPoint, dataPoint, dataPointPath)
-        if data is None:
-            return None
-        return data["values"]
+        return None if data is None else data["values"]
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     async def updateData(self):
         """Update the data of self device from the cloud."""
         return
-        # TODO: Enhance self method to also allow to get some partial data
-        # like only one managementPoint or such; needs checking how to request
-        print("DEV UPDATE " + self.name)
-        desc = await self.api.doBearerRequest("/v1/gateway-devices/" + self.getId())
-        self.setJsonData(desc)
-        print("DEVICE: " + self.name)
-        print(
-            "    temp: inner "
-            + str(self.get_value("climateControl", "sensoryData", "/roomTemperature"))
-            + " outer "
-            + str(
-                self.get_value("climateControl", "sensoryData", "/outdoorTemperature")
-            )
-        )
-        print(
-            "    current mode: "
-            + str(self.get_value("climateControl", "operationMode"))
-            + "  "
-            + str(self.get_value("climateControl", "onOffMode"))
-        )
-        print(
-            "    target temp: "
-            + str(
-                self.get_value(
-                    "climateControl",
-                    "temperatureControl",
-                    "/operationModes/cooling/setpoints/roomTemperature",
-                )
-            )
-        )
-        print(
-            "    FAN: mode [{}] speed [{}]\n".format(
-                self.get_value(
-                    "climateControl",
-                    "fanControl",
-                    "/operationModes/auto/fanSpeed/currentMode",
-                ),
-                self.get_value(
-                    "climateControl",
-                    "fanControl",
-                    "/operationModes/auto/fanSpeed/modes/fixed",
-                ),
-            )
-        )
-        return True
 
     def _validateData(self, dataPoint, descr, value):
         """Validates a value that should be sent to the Daikin Device."""
@@ -244,7 +195,7 @@ class DaikinResidentialDevice:
             raise Exception("Value can not be set without dataPointPath")
 
         if "settable" not in descr or not descr["settable"]:
-            raise Exception("Data point " + dataPoint + " is not writable")
+            raise Exception(f"Data point {dataPoint} is not writable")
 
         if "stepValue" in descr and type(descr["stepValue"]) != type(value):
             raise Exception(
@@ -366,9 +317,9 @@ class DaikinResidentialDevice:
             setBody["path"] = dataPointPath
         setOptions = {"method": "PATCH", "json": json.dumps(setBody)}
 
-        _LOGGER.debug("Path: " + setPath + " , options: %s", setOptions)
+        _LOGGER.debug(f"Path: {setPath} , options: %s", setOptions)
 
         res = await self.api.doBearerRequest(setPath, setOptions)
-        _LOGGER.debug("RES IS {}".format(res))
+        _LOGGER.debug(f"RES IS {res}")
         if res is True:
             self.get_data(managementPoint, dataPoint, dataPointPath)["value"] = value

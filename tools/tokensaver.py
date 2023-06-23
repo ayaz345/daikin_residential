@@ -45,11 +45,11 @@ class DaikinCloudController():
 
 
     async def doBearerRequest(self, resourceUrl, options=None, refreshed=False):
-        if self.tokenSet == None:
+        if self.tokenSet is None:
             raise Exception('Please provide a TokenSet or use the Proxy server to Authenticate once')
 
         if not resourceUrl.startswith('http'):
-            resourceUrl = 'https://api.prod.unicloud.edc.dknadmin.be' + resourceUrl
+            resourceUrl = f'https://api.prod.unicloud.edc.dknadmin.be{resourceUrl}'
 
         headers = {
             'user-agent': 'Daikin/1.6.1.4681 CFNetwork/1209 Darwin/20.2.0',
@@ -75,19 +75,19 @@ class DaikinCloudController():
                 return res.text
         if res.status_code == 204:
             return True
-        
+
         if not refreshed and res.status_code == 401:
             _LOGGER.info("TOKEN EXPIRED: will refresh it (%s)",res.status_code)
             await self.refreshAccessToken()
             return await self.doBearerRequest(resourceUrl, options,True)
 
-        raise Exception('Communication failed! Status: ' + str(res.status_code))
+        raise Exception(f'Communication failed! Status: {res.status_code}')
 
 
     async def refreshAccessToken(self):
         """Attempt to refresh the Access Token."""
         url = 'https://cognito-idp.eu-west-1.amazonaws.com'
-        
+
         headers = {
             'Content-Type': 'application/x-amz-json-1.1',
             'x-amz-target': 'AWSCognitoIdentityProviderService.InitiateAuth',
@@ -106,7 +106,7 @@ class DaikinCloudController():
         _LOGGER.debug("REFRESHACCESSTOKEN RESPONSE: %s",res.json())
         res_json = res.json()
         if res.status_code != 200:
-            raise Exception('Token refresh was not successful! Status: ' + str(res.status_code))
+            raise Exception(f'Token refresh was not successful! Status: {res.status_code}')
 
         if res_json['AuthenticationResult'] != None and res_json['AuthenticationResult']['AccessToken'] != None and res_json['AuthenticationResult']['TokenType'] == 'Bearer':
             self.tokenSet['access_token'] = res_json['AuthenticationResult']['AccessToken']
@@ -118,7 +118,7 @@ class DaikinCloudController():
 
 #            self.emit('token_update', self.tokenSet);
             return self.tokenSet;
-        raise Exception('Token refresh was not successful! Status: ' + str(res.status_code))
+        raise Exception(f'Token refresh was not successful! Status: {res.status_code}')
 
 
     async def getApiInfo(self):
@@ -132,22 +132,18 @@ class DaikinCloudController():
 
     async def getCloudDeviceData(self, devId):
         """Get pure Device Data of a single Daikin cloud device."""
-        return await self.doBearerRequest('/v1/gateway-devices/' + devId)
+        return await self.doBearerRequest(f'/v1/gateway-devices/{devId}')
 
     async def getCloudDevices(self):
         """Get array of DaikinCloudDevice objects to interact with the device and get data."""
         devices = await self.getCloudDeviceDetails()
-        res = [
-            DaikinCloudDevice(dev, self)
-            for dev in devices or []
-        ]
-        return res
+        return [DaikinCloudDevice(dev, self) for dev in devices or []]
         #res.update(dev)
 
     async def _doAuthorizationRequest(self):
         args = {"response_type": ["code"], "scope": "openid"}
         state = base64.urlsafe_b64encode(os.urandom(32)).decode('utf-8').replace('=','')
-        print("STATE: {}".format(state))
+        print(f"STATE: {state}")
         args = {
             'authorization_endpoint': 'https://daikin-unicloud-prod.auth.eu-west-1.amazoncognito.com/oauth2/authorize',
             'userinfo_endpoint': 'userinfo_endpoint',
@@ -157,7 +153,7 @@ class DaikinCloudController():
 
         self.openIdClient.redirect_uris = ['daikinunified://login']
         _args, code_verifier = self.openIdClient.add_code_challenge()
-        args.update(_args)
+        args |= _args
         self.openIdStore[state] = { 'code_verifier': code_verifier }
 
         auth_resp = self.openIdClient.do_authorization_request(request_args=args, state=state)
@@ -183,7 +179,9 @@ class DaikinCloudController():
         }
 
         if self.openIdStore[state] is None:
-             raise Exception('Can not decode response for State ' + state + '. Please reload start page and try again!')
+            raise Exception(
+                f'Can not decode response for State {state}. Please reload start page and try again!'
+            )
 
         if params['code'] is not None:
             callbackParams = {
@@ -200,7 +198,7 @@ class DaikinCloudController():
                 "expires_in": rtk_resp["expires_in"],
                 "token_type": rtk_resp["token_type"]
             }
-            print('NEW TOKENSET: {}'.format(new_tokenset))
+            print(f'NEW TOKENSET: {new_tokenset}')
             return new_tokenset
         else:
             raise Exception('Daikin-Cloud: ERROR.')
@@ -249,7 +247,7 @@ class DaikinCloudController():
             regex = '(\d+-\d-\d+)'
             ms = re.search(regex, body)
             version = ms[0]
-            print('VERSION: ' + version)
+            print(f'VERSION: {version}')
         except:
             raise Exception('Error trying to extract API version')
 
@@ -266,10 +264,10 @@ class DaikinCloudController():
 
         ssoCookies_arr = ssoCookies.split(', ')
         cookies = ssoCookies_arr[0].split(';')[0].strip() + '; ' + ssoCookies_arr[2].split(';')[0].strip() + '; ' + ssoCookies_arr[4].split(';')[0].strip()
-        cookies += '; gig_bootstrap_' + API_KEY + '=cdc_ver4; '
-        cookies += 'gig_canary_' + API_KEY2 + '=false; '
-        cookies += 'gig_canary_ver_' + API_KEY2 + '=' + version + '; '
-        cookies += 'apiDomain_' + API_KEY2 + '=cdc.daikin.eu; ';
+        cookies += f'; gig_bootstrap_{API_KEY}=cdc_ver4; '
+        cookies += f'gig_canary_{API_KEY2}=false; '
+        cookies += f'gig_canary_ver_{API_KEY2}={version}; '
+        cookies += f'apiDomain_{API_KEY2}=cdc.daikin.eu; ';
         # print('COOKIES: ' + cookies)
         # print('SAMLCONTEXT: ' + samlContext)
 
@@ -280,27 +278,25 @@ class DaikinCloudController():
                     'content-type': 'application/x-www-form-urlencoded',
                     'cookie': cookies
             }
-            req_json={
+            req_json = {
                 'loginID': userName,
                 'password': password,
-                'sessionExpiration':'31536000',
-                'targetEnv':'jssdk',
+                'sessionExpiration': '31536000',
+                'targetEnv': 'jssdk',
                 'include': 'profile,',
                 'loginMode': 'standard',
                 'riskContext': '{"b0":7527,"b2":4,"b5":1',
                 'APIKey': API_KEY,
                 'sdk': 'js_latest',
                 'authMode': 'cookie',
-                'pageURL': 'https://my.daikin.eu/content/daikinid-cdc-saml/en/login.html?samlContext=' + samlContext,
+                'pageURL': f'https://my.daikin.eu/content/daikinid-cdc-saml/en/login.html?samlContext={samlContext}',
                 'sdkBuild': '12208',
-                'format': 'json'
+                'format': 'json',
             }
-            http_args = {}
-            http_args['headers'] = headers
-
+            http_args = {'headers': headers}
             resp = requests.post('https://cdc.daikin.eu/accounts.login', headers=headers, data=req_json)
             response = resp.json()
-            print('LOGIN REPLY: {}'.format(response))
+            print(f'LOGIN REPLY: {response}')
 
             if response is not None and response['errorCode'] == 0 and response['sessionInfo'] is not None and 'login_token' in response['sessionInfo']:
                 login_token = response['sessionInfo']['login_token'];
@@ -308,16 +304,16 @@ class DaikinCloudController():
                 raise Exception('Unknown Login error: ' + response['errorDetails'] )
         except:
             raise Exception('Login failed')
-        
+
         # print('LOGIN TOKEN: ' + login_token)
 
         samlResponse = ''
         relayState = ''
         expiry = str(int(time.time()) + 3600000)
-        cookies = cookies + 'glt_' + API_KEY + '=' + login_token + '; '
-        cookies += 'gig_loginToken_' + API_KEY2 + '=' + login_token + '; '
-        cookies += 'gig_loginToken_' + API_KEY2 + '_exp=' + expiry + '; '
-        cookies += 'gig_loginToken_' + API_KEY2 + '_visited=%2C' + API_KEY + ';'
+        cookies = f'{cookies}glt_{API_KEY}={login_token}; '
+        cookies += f'gig_loginToken_{API_KEY2}={login_token}; '
+        cookies += f'gig_loginToken_{API_KEY2}_exp={expiry}; '
+        cookies += f'gig_loginToken_{API_KEY2}_visited=%2C{API_KEY};'
         _LOGGER.info('COOKIES: %s', cookies)
         # print('COOKIES: ' + cookies)
 
@@ -329,7 +325,11 @@ class DaikinCloudController():
                 'samlContext': samlContext,
                 'loginToken': login_token
             }
-            response = requests.post('https://cdc.daikin.eu/saml/v2.0/' + API_KEY + '/idp/sso/continue', headers=headers, data=req_json).text
+            response = requests.post(
+                f'https://cdc.daikin.eu/saml/v2.0/{API_KEY}/idp/sso/continue',
+                headers=headers,
+                data=req_json,
+            ).text
             # print('SAML: {}'.format(response))
             regex = 'name="SAMLResponse" value="([^"]+)"'
             ms = re.search(regex, response)
@@ -355,14 +355,16 @@ class DaikinCloudController():
                 'SAMLResponse': samlResponse,
                 'RelayState': relayState
             }
-            body = 'SAMLResponse=' + samlResponse + '&RelayState=' + relayState # : params.toString(),
+            body = f'SAMLResponse={samlResponse}&RelayState={relayState}'
             response = requests.post('https://daikin-unicloud-prod.auth.eu-west-1.amazoncognito.com/saml2/idpresponse', headers=headers, data=req_json, allow_redirects=False)
             daikinunified_url = response.headers['location']
             # print('DAIKINUNIFIED1: {}'.format(response))
             # print('DAIKINUNIFIED2: ' + daikinunified)
 
-            if not 'daikinunified' in daikinunified_url:
-                raise Exception('Invalid final Authentication redirect. Location is ' + daikinunified_url)
+            if 'daikinunified' not in daikinunified_url:
+                raise Exception(
+                    f'Invalid final Authentication redirect. Location is {daikinunified_url}'
+                )
         except:
             raise Exception('Impossible to retrieve SAML Identity Provider\'s response')
 
@@ -372,7 +374,7 @@ class DaikinCloudController():
             sformat="urlencoded",
             state=self.state
         )
-    
+
         self.tokenSet = await self._doAccessTokenRequest(daikinunified_url)
         with open('tokenset.json', 'w') as outfile:
                 json.dump(self.tokenSet, outfile)
@@ -393,15 +395,15 @@ class DaikinCloudDevice():
         """Helper method to traverse the Device object returned by Daikin cloud for subPath datapoints."""
         for key in obj.keys():
             if type(obj[key]) is not dict:
-                data[pathPrefix + '/' + key] = obj[key]
+                data[f'{pathPrefix}/{key}'] = obj[key]
             else:
                 subKeys = obj[key].keys()
                 if key == 'meta' or 'value' in subKeys or 'settable' in subKeys or 'unit' in subKeys:
                     # we found end leaf
-                    data[pathPrefix + '/' + key] = obj[key]
+                    data[f'{pathPrefix}/{key}'] = obj[key]
                 elif type(obj[key]) == dict:
                     # go one level deeper
-                    self._traverseDatapointStructure(obj[key], data, pathPrefix + '/' + key)
+                    self._traverseDatapointStructure(obj[key], data, f'{pathPrefix}/{key}')
                 else:
                     _LOGGER.error('SOMETHING IS WRONG WITH KEY %s', key)
         return data
@@ -412,12 +414,12 @@ class DaikinCloudDevice():
         self.desc = desc
         self.managementPoints = {}
         dataPoints = {}
- 
+
         for mp in self.desc['managementPoints']:
             dataPoints = {}
             for key in mp.keys():
                 dataPoints[key] = {}
-                if mp[key] == None:
+                if mp[key] is None:
                     continue
                 if type(mp[key]) != dict:
                     continue
@@ -438,14 +440,14 @@ class DaikinCloudDevice():
 
     def getData(self, managementPoint=None, dataPoint=None, dataPointPath=''):
         """Get a current data object (includes value and meta information)."""
-        if managementPoint == None:
+        if managementPoint is None:
             # return all data
             return self.managementPoints
-        if not managementPoint in self.managementPoints:
+        if managementPoint not in self.managementPoints:
             return None
-        if dataPoint == None:
+        if dataPoint is None:
             return self.managementPoints[managementPoint]
-        if not dataPoint in self.managementPoints[managementPoint]:
+        if dataPoint not in self.managementPoints[managementPoint]:
             return None
         if dataPointPath == '':
             # return data from one managementPoint and dataPoint
@@ -462,15 +464,15 @@ class DaikinCloudDevice():
 async def main():
     user = sys.argv[1] if len(sys.argv) >= 2 else "nousr"
     pwd = sys.argv[2] if len(sys.argv) >= 3 else "nopwd"
-    print ("PARAMS: " + user + " " + pwd)
+    print(f"PARAMS: {user} {pwd}")
     controller = DaikinCloudController()
     tokenSet = await controller.retrieveAccessToken(user, pwd)
     devices = await controller.getCloudDevices()
-    print('Found ' + str(len(devices))  + ' devices:')
+    print(f'Found {len(devices)} devices:')
     for dev in devices:
         devName = dev.getValue('climateControl', 'name')
-        print('Device ' + dev.getId() + ' ( ' + devName + ' ) Data:')
-        print('    last updated: ' + dev.getLastUpdated())
+        print(f'Device {dev.getId()} ( {devName} ) Data:')
+        print(f'    last updated: {dev.getLastUpdated()}')
         print('    modelInfo: ' + dev.getValue('gateway', 'modelInfo'))
         print('    macAddr: ' + dev.getValue('gateway', 'macAddress'))
         print('    fw ver: ' + dev.getValue('gateway', 'firmwareVersion'))

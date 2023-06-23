@@ -1,5 +1,6 @@
 """Constants for Daikin Residential Controller."""
 
+
 from homeassistant.const import (
     CONF_DEVICE_CLASS,
     CONF_TOKEN,
@@ -19,7 +20,7 @@ from homeassistant.const import (
 
 DOMAIN = "daikin_residential"
 
-CONF_TOKENSET = CONF_TOKEN + "set"
+CONF_TOKENSET = f"{CONF_TOKEN}set"
 
 DAIKIN_DATA = "daikin_data"
 DAIKIN_API = "daikin_api"

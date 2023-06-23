@@ -37,11 +37,11 @@ class DaikinCloudController():
 
 
     async def doBearerRequest(self, resourceUrl, options=None, refreshed=False):
-        if self.tokenSet == None:
+        if self.tokenSet is None:
             raise Exception('Please provide a TokenSet or use the Proxy server to Authenticate once')
 
         if not resourceUrl.startswith('http'):
-            resourceUrl = 'https://api.prod.unicloud.edc.dknadmin.be' + resourceUrl
+            resourceUrl = f'https://api.prod.unicloud.edc.dknadmin.be{resourceUrl}'
 
         headers = {
             'user-agent': 'Daikin/1.6.1.4681 CFNetwork/1209 Darwin/20.2.0',
@@ -67,19 +67,19 @@ class DaikinCloudController():
                 return res.text
         if res.status_code == 204:
             return True
-        
+
         if not refreshed and res.status_code == 401:
             _LOGGER.info("TOKEN EXPIRED: will refresh it (%s)",res.status_code)
             await self.refreshAccessToken()
             return await self.doBearerRequest(resourceUrl, options,True)
 
-        raise Exception('Communication failed! Status: ' + str(res.status_code))
+        raise Exception(f'Communication failed! Status: {res.status_code}')
 
 
     async def refreshAccessToken(self):
         """Attempt to refresh the Access Token."""
         url = 'https://cognito-idp.eu-west-1.amazonaws.com'
-        
+
         headers = {
             'Content-Type': 'application/x-amz-json-1.1',
             'x-amz-target': 'AWSCognitoIdentityProviderService.InitiateAuth',
@@ -98,7 +98,7 @@ class DaikinCloudController():
         _LOGGER.debug("REFRESHACCESSTOKEN RESPONSE: %s",res.json())
         res_json = res.json()
         if res.status_code != 200:
-            raise Exception('Token refresh was not successful! Status: ' + str(res.status_code))
+            raise Exception(f'Token refresh was not successful! Status: {res.status_code}')
 
         if res_json['AuthenticationResult'] != None and res_json['AuthenticationResult']['AccessToken'] != None and res_json['AuthenticationResult']['TokenType'] == 'Bearer':
             self.tokenSet['access_token'] = res_json['AuthenticationResult']['AccessToken']
@@ -109,7 +109,7 @@ class DaikinCloudController():
                 json.dump(self.tokenSet, outfile)
 
             return self.tokenSet;
-        raise Exception('Token refresh was not successful! Status: ' + str(res.status_code))
+        raise Exception(f'Token refresh was not successful! Status: {res.status_code}')
 
 
     async def getApiInfo(self):
@@ -123,7 +123,7 @@ class DaikinCloudController():
 
     async def getCloudDeviceData(self, devId):
         """Get pure Device Data of a single Daikin cloud device."""
-        return await self.doBearerRequest('/v1/gateway-devices/' + devId)
+        return await self.doBearerRequest(f'/v1/gateway-devices/{devId}')
 
 
 async def main():
