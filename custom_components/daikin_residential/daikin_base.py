@@ -105,8 +105,7 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
         else:
             cmd_set = DAIKIN_CMD_SETS[param].copy()
         if "%operationMode%" in cmd_set[2]:
-            operation_mode = self.getValue(ATTR_OPERATION_MODE)
-            if operation_mode:
+            if operation_mode := self.getValue(ATTR_OPERATION_MODE):
                 cmd_set[2] = cmd_set[2].replace("%operationMode%", operation_mode)
         return cmd_set
 
@@ -118,16 +117,12 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
     def getValue(self, param):
         """Get the current value of a data object."""
         data = self.getData(param)
-        if data is None:
-            return None
-        return data["value"]
+        return None if data is None else data["value"]
 
     def getValidValues(self, param):
         """Get the valid values of a data object."""
         data = self.getData(param)
-        if data is None:
-            return None
-        return data["values"]
+        return None if data is None else data["values"]
 
     async def setValue(self, param, value):
         """Set the current value of a data object."""
@@ -151,18 +146,19 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
     def hvac_modes(self):
         """Return the list of available HVAC modes."""
         modes = [HVAC_MODE_OFF]
-        for mode in self.getValidValues(ATTR_OPERATION_MODE):
-            modes.append(DAIKIN_HVAC_TO_HA[mode])
+        modes.extend(
+            DAIKIN_HVAC_TO_HA[mode]
+            for mode in self.getValidValues(ATTR_OPERATION_MODE)
+        )
         return modes
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set HVAC mode."""
         if hvac_mode == HVAC_MODE_OFF:
             return await self.setValue(ATTR_ON_OFF, ATTR_STATE_OFF)
-        else:
-            if self.hvac_mode == HVAC_MODE_OFF:
-                await self.setValue(ATTR_ON_OFF, ATTR_STATE_ON)
-            return await self.setValue(ATTR_OPERATION_MODE, hvac_mode)
+        if self.hvac_mode == HVAC_MODE_OFF:
+            await self.setValue(ATTR_ON_OFF, ATTR_STATE_ON)
+        return await self.setValue(ATTR_OPERATION_MODE, hvac_mode)
 
     def support_preset_mode(self, mode):
         """Return True if the device supports preset mode."""
@@ -173,9 +169,7 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
     def preset_mode_status(self, mode):
         """Return the preset mode status."""
         mode = HA_PRESET_TO_DAIKIN[mode]
-        if self.getData(mode) is None:
-            return False
-        return self.getValue(mode)
+        return False if self.getData(mode) is None else self.getValue(mode)
 
     async def set_preset_mode_status(self, mode, status):
         """Set the preset mode status."""
@@ -211,8 +205,7 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
                 fixedModes = self.getData(ATTR_FAN_SPEED)
                 minVal = int(fixedModes["minValue"])
                 maxVal = int(fixedModes["maxValue"])
-                for val in range(minVal, maxVal + 1):
-                    fanModes.append(str(val))
+                fanModes.extend(str(val) for val in range(minVal, maxVal + 1))
         return fanModes
 
     async def async_set_fan_mode(self, mode):
@@ -237,10 +230,7 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
         if hMode != ATTR_SWING_STOP:
             swingMode = SWING_HORIZONTAL
         if vMode != ATTR_SWING_STOP:
-            if hMode != ATTR_SWING_STOP:
-                swingMode = SWING_BOTH
-            else:
-                swingMode = SWING_VERTICAL
+            swingMode = SWING_BOTH if hMode != ATTR_SWING_STOP else SWING_VERTICAL
         return swingMode
 
     @property
@@ -263,12 +253,12 @@ class Appliance(DaikinResidentialDevice):  # pylint: disable=too-many-public-met
         vMode = self.getValue(ATTR_VSWING_MODE)
         new_hMode = (
             ATTR_SWING_SWING
-            if mode == SWING_HORIZONTAL or mode == SWING_BOTH
+            if mode in [SWING_HORIZONTAL, SWING_BOTH]
             else ATTR_SWING_STOP
         )
         new_vMode = (
             ATTR_SWING_SWING
-            if mode == SWING_VERTICAL or mode == SWING_BOTH
+            if mode in [SWING_VERTICAL, SWING_BOTH]
             else ATTR_SWING_STOP
         )
         if hMode != new_hMode:

@@ -44,9 +44,9 @@ class DaikinApi:
 
         configuration = {
             "issuer": DAIKIN_ISSUER,
-            "authorization_endpoint": DAIKIN_CLOUD_URL + "/oauth2/authorize",
+            "authorization_endpoint": f"{DAIKIN_CLOUD_URL}/oauth2/authorize",
             "userinfo_endpoint": "userinfo_endpoint",
-            "token_endpoint": DAIKIN_CLOUD_URL + "/oauth2/token",
+            "token_endpoint": f"{DAIKIN_CLOUD_URL}/oauth2/token",
             "token_endpoint_auth_methods_supported": ["none"],
         }
 
@@ -70,7 +70,7 @@ class DaikinApi:
             raise Exception("Missing TokenSet. Please repeat Authentication process.")
 
         if not resourceUrl.startswith("http"):
-            resourceUrl = "https://api.prod.unicloud.edc.dknadmin.be" + resourceUrl
+            resourceUrl = f"https://api.prod.unicloud.edc.dknadmin.be{resourceUrl}"
 
         headers = {
             "user-agent": "Daikin/1.6.1.4681 CFNetwork/1209 Darwin/20.2.0",
@@ -116,7 +116,7 @@ class DaikinApi:
             await self.refreshAccessToken()
             return await self.doBearerRequest(resourceUrl, options, True)
 
-        raise Exception("Communication failed! Status: " + str(res.status_code))
+        raise Exception(f"Communication failed! Status: {str(res.status_code)}")
 
     async def refreshAccessToken(self):
         """Attempt to refresh the Access Token."""
@@ -181,7 +181,7 @@ class DaikinApi:
             )
         except Exception:
             raise Exception(
-                "Token refresh was not successful! Status: " + str(res.status_code)
+                f"Token refresh was not successful! Status: {str(res.status_code)}"
             )
 
     async def _doAuthorizationRequest(self):
@@ -195,7 +195,7 @@ class DaikinApi:
         )
         _LOGGER.debug("STATE: %s", state)
         args = {
-            "authorization_endpoint": DAIKIN_CLOUD_URL + "/oauth2/authorize",
+            "authorization_endpoint": f"{DAIKIN_CLOUD_URL}/oauth2/authorize",
             "userinfo_endpoint": "userinfo_endpoint",
             "response_type": ["code"],
             "scopes": "email,openid,profile",
@@ -203,7 +203,7 @@ class DaikinApi:
 
         self.openIdClient.redirect_uris = ["daikinunified://login"]
         _args, code_verifier = self.openIdClient.add_code_challenge()
-        args.update(_args)
+        args |= _args
         self.openIdStore[state] = {"code_verifier": code_verifier}
 
         func = functools.partial(
@@ -223,14 +223,13 @@ class DaikinApi:
         state = self.state
 
         args = {
-            "authorization_endpoint": DAIKIN_CLOUD_URL + "/oauth2/authorize",
-            "token_endpoint": DAIKIN_CLOUD_URL + "/oauth2/token",
+            "authorization_endpoint": f"{DAIKIN_CLOUD_URL}/oauth2/authorize",
+            "token_endpoint": f"{DAIKIN_CLOUD_URL}/oauth2/token",
             "token_endpoint_auth_methods_supported": ["none"],
-            # 'userinfo_endpoint': 'userinfo_endpoint',
             "response_type": ["code"],
             "scopes": "email,openid,profile",
             "state": state,
-            "token_endpoint_auth_method": "none",  # (default 'client_secret_basic')
+            "token_endpoint_auth_method": "none",
         }
 
         if self.openIdStore[state] is None:
